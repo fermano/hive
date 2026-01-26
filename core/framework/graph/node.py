@@ -17,13 +17,14 @@ Protocol:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-from framework.runtime.core import Runtime
 from framework.llm.provider import LLMProvider, Tool
+from framework.runtime.core import Runtime
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def find_json_object(text: str) -> str | None:
 
     This handles nested objects correctly, unlike simple regex like r'\\{[^{}]*\\}'.
     """
-    start = text.find('{')
+    start = text.find("{")
     if start == -1:
         return None
 
@@ -46,7 +47,7 @@ def find_json_object(text: str) -> str | None:
             escape_next = False
             continue
 
-        if char == '\\' and in_string:
+        if char == "\\" and in_string:
             escape_next = True
             continue
 
@@ -57,9 +58,9 @@ def find_json_object(text: str) -> str | None:
         if in_string:
             continue
 
-        if char == '{':
+        if char == "{":
             depth += 1
-        elif char == '}':
+        elif char == "}":
             depth -= 1
             if depth == 0:
                 return text[start:i + 1]
@@ -110,11 +111,17 @@ class NodeSpec(BaseModel):
     # Optional schemas for validation and cleansing
     input_schema: dict[str, dict] = Field(
         default_factory=dict,
-        description="Optional schema for input validation. Format: {key: {type: 'string', required: True, description: '...'}}"
+        description=(
+            "Optional schema for input validation. Format: "
+            "{key: {type: 'string', required: True, description: '...'}}"
+        )
     )
     output_schema: dict[str, dict] = Field(
         default_factory=dict,
-        description="Optional schema for output validation. Format: {key: {type: 'dict', required: True, description: '...'}}"
+        description=(
+            "Optional schema for output validation. Format: "
+            "{key: {type: 'dict', required: True, description: '...'}}"
+        )
     )
 
     # For LLM nodes
@@ -361,19 +368,22 @@ class NodeResult:
 
         # Use Haiku to generate intelligent summary
         try:
-            import anthropic
             import json
+
+            import anthropic
 
             node_context = ""
             if node_spec:
                 node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
 
-            prompt = f"""Generate a 1-2 sentence human-readable summary of what this node produced.{node_context}
-
-Node output:
-{json.dumps(self.output, indent=2, default=str)[:2000]}
-
-Provide a concise, clear summary that a human can quickly understand. Focus on the key information produced."""
+            output_json = json.dumps(self.output, indent=2, default=str)[:2000]
+            prompt = (
+                f"Generate a 1-2 sentence human-readable summary of what this node "
+                f"produced.{node_context}\n\n"
+                f"Node output:\n{output_json}\n\n"
+                f"Provide a concise, clear summary that a human can quickly understand. "
+                f"Focus on the key information produced."
+            )
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
@@ -482,7 +492,7 @@ class LLMNode(NodeProtocol):
         import re
         content = content.strip()
         # Match ```json or ``` at start and ``` at end (greedy to handle nested)
-        match = re.match(r'^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$', content, re.DOTALL)
+        match = re.match(r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL)
         if match:
             return match.group(1).strip()
         return content
@@ -531,17 +541,25 @@ class LLMNode(NodeProtocol):
 
             # Log the LLM call details
             logger.info("      🤖 LLM Call:")
-            logger.info(f"         System: {system[:150]}..." if len(system) > 150 else f"         System: {system}")
-            logger.info(f"         User message: {messages[-1]['content'][:150]}..." if len(messages[-1]['content']) > 150 else f"         User message: {messages[-1]['content']}")
+            if len(system) > 150:
+                logger.info(f"         System: {system[:150]}...")
+            else:
+                logger.info(f"         System: {system}")
+            user_msg = messages[-1]["content"]
+            if len(user_msg) > 150:
+                logger.info(f"         User message: {user_msg[:150]}...")
+            else:
+                logger.info(f"         User message: {user_msg}")
             if ctx.available_tools:
                 logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
 
             # Call LLM
             if ctx.available_tools and self.tool_executor:
-                from framework.llm.provider import ToolUse, ToolResult
+                from framework.llm.provider import ToolResult, ToolUse
 
                 def executor(tool_use: ToolUse) -> ToolResult:
-                    logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
+                    tool_args = ", ".join(f"{k}={v}" for k, v in tool_use.input.items())
+                    logger.info(f"         🔧 Tool call: {tool_use.name}({tool_args})")
                     result = self.tool_executor(tool_use)
                     # Truncate long results
                     result_str = str(result.content)[:150]
@@ -565,7 +583,8 @@ class LLMNode(NodeProtocol):
                     and len(ctx.node_spec.output_keys) >= 1
                 )
                 if use_json_mode:
-                    logger.info(f"         📋 Expecting JSON output with keys: {ctx.node_spec.output_keys}")
+                    output_keys_str = ", ".join(ctx.node_spec.output_keys)
+                    logger.info(f"         📋 Expecting JSON output with keys: {output_keys_str}")
 
                 response = ctx.llm.complete(
                     messages=messages,
@@ -574,7 +593,10 @@ class LLMNode(NodeProtocol):
                 )
 
             # Log the response
-            response_preview = response.content[:200] if len(response.content) > 200 else response.content
+            if len(response.content) > 200:
+                response_preview = response.content[:200]
+            else:
+                response_preview = response.content
             if len(response.content) > 200:
                 response_preview += "..."
             logger.info(f"      ← Response: {response_preview}")
@@ -593,7 +615,9 @@ class LLMNode(NodeProtocol):
             output = self._parse_output(response.content, ctx.node_spec)
 
             # For llm_generate and llm_tool_use nodes, try to parse JSON and extract fields
-            if ctx.node_spec.node_type in ("llm_generate", "llm_tool_use") and len(ctx.node_spec.output_keys) >= 1:
+            node_types = ("llm_generate", "llm_tool_use")
+            has_output_keys = len(ctx.node_spec.output_keys) >= 1
+            if ctx.node_spec.node_type in node_types and has_output_keys:
                 try:
                     import json
 
@@ -611,11 +635,12 @@ class LLMNode(NodeProtocol):
                                 ctx.memory.write(key, value)
                                 output[key] = value
                             elif key in ctx.input_data:
-                                # Key not in parsed JSON but exists in input - pass through input value
+                                # Key not in parsed JSON but exists in input - pass through
+                                # input value
                                 ctx.memory.write(key, ctx.input_data[key])
                                 output[key] = ctx.input_data[key]
                             else:
-                                # Key not in parsed JSON or input, write the whole response (stripped)
+                                # Key not in parsed JSON or input, write whole response (stripped)
                                 stripped_content = self._strip_code_blocks(response.content)
                                 ctx.memory.write(key, stripped_content)
                                 output[key] = stripped_content
@@ -629,12 +654,16 @@ class LLMNode(NodeProtocol):
                 except (json.JSONDecodeError, Exception) as e:
                     # JSON extraction failed - fail explicitly instead of polluting memory
                     logger.error(f"      ✗ Failed to extract structured output: {e}")
-                    logger.error(f"      Raw response (first 500 chars): {response.content[:500]}...")
+                    raw_preview = response.content[:500]
+                    logger.error(f"      Raw response (first 500 chars): {raw_preview}...")
 
                     # Return failure instead of writing garbage to all keys
                     return NodeResult(
                         success=False,
-                        error=f"Output extraction failed: {e}. LLM returned non-JSON response. Expected keys: {ctx.node_spec.output_keys}",
+                        error=(
+                            f"Output extraction failed: {e}. LLM returned non-JSON response. "
+                            f"Expected keys: {ctx.node_spec.output_keys}"
+                        ),
                         output={},
                         tokens_used=response.input_tokens + response.output_tokens,
                         latency_ms=latency_ms,
@@ -701,14 +730,14 @@ class LLMNode(NodeProtocol):
             if content.startswith("```"):
                 # Try multiple patterns for markdown code blocks
                 # Pattern 1: ```json\n...\n``` or ```\n...\n```
-                match = re.search(r'^```(?:json)?\s*\n([\s\S]*?)\n```\s*$', content)
+                match = re.search(r"^```(?:json)?\s*\n([\s\S]*?)\n```\s*$", content)
                 if match:
                     content = match.group(1).strip()
                 else:
                     # Pattern 2: Just strip the first and last lines if they're ```
-                    lines = content.split('\n')
-                    if lines[0].startswith('```') and lines[-1].strip() == '```':
-                        content = '\n'.join(lines[1:-1]).strip()
+                    lines = content.split("\n")
+                    if lines[0].startswith("```") and lines[-1].strip() == "```":
+                        content = "\n".join(lines[1:-1]).strip()
 
             parsed = json.loads(content)
             if isinstance(parsed, dict):
@@ -718,7 +747,7 @@ class LLMNode(NodeProtocol):
 
         # Try to extract JSON from markdown code blocks (greedy match to handle nested blocks)
         # Use anchored match to capture from first ``` to last ```
-        code_block_match = re.match(r'^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$', content, re.DOTALL)
+        code_block_match = re.match(r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL)
         if code_block_match:
             try:
                 parsed = json.loads(code_block_match.group(1).strip())
@@ -742,7 +771,10 @@ class LLMNode(NodeProtocol):
         import os
         api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
-            raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
+            raise ValueError(
+                "Cannot parse JSON and no API key for LLM cleanup "
+                "(set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)"
+            )
 
         # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
         from framework.llm.litellm import LiteLLMProvider
@@ -779,14 +811,14 @@ Output ONLY the JSON object, nothing else."""
             cleaned = result.content.strip()
             # Remove markdown if LLM added it
             if cleaned.startswith("```"):
-                match = re.search(r'^```(?:json)?\s*\n([\s\S]*?)\n```\s*$', cleaned)
+                match = re.search(r"^```(?:json)?\s*\n([\s\S]*?)\n```\s*$", cleaned)
                 if match:
                     cleaned = match.group(1).strip()
                 else:
                     # Fallback: strip first/last lines
-                    lines = cleaned.split('\n')
-                    if lines[0].startswith('```') and lines[-1].strip() == '```':
-                        cleaned = '\n'.join(lines[1:-1]).strip()
+                    lines = cleaned.split("\n")
+                    if lines[0].startswith("```") and lines[-1].strip() == "```":
+                        cleaned = "\n".join(lines[1:-1]).strip()
 
             parsed = json.loads(cleaned)
             logger.info("      ✓ LLM cleaned JSON output")
@@ -854,7 +886,8 @@ Required fields: {', '.join(ctx.node_spec.input_keys)}
 Memory context (may contain nested data, JSON strings, or extra information):
 {memory_json}
 
-Extract ONLY the clean values for the required fields. Ignore nested structures, JSON wrappers, and irrelevant data.
+Extract ONLY the clean values for the required fields. Ignore nested structures, "
+                f"JSON wrappers, and irrelevant data.
 
 Output as JSON with the exact field names requested."""
 
@@ -1033,7 +1066,10 @@ Respond with ONLY a JSON object:
         try:
             response = ctx.llm.complete(
                 messages=[{"role": "user", "content": prompt}],
-                system=ctx.node_spec.system_prompt or "You are a routing agent. Respond with JSON only.",
+                system=(
+                    ctx.node_spec.system_prompt
+                    or "You are a routing agent. Respond with JSON only."
+                ),
                 max_tokens=150,
             )
 
@@ -1048,7 +1084,8 @@ Respond with ONLY a JSON object:
                 logger.info(f"         Reason: {reasoning}")
 
                 # Find the target for this choice
-                target = ctx.node_spec.routes.get(chosen, ctx.node_spec.routes.get("default", "end"))
+                default_target = ctx.node_spec.routes.get("default", "end")
+                target = ctx.node_spec.routes.get(chosen, default_target)
                 return (chosen, target)
 
         except Exception as e:

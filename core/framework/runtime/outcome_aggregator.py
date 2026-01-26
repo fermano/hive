@@ -9,7 +9,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from framework.schemas.decision import Decision, Outcome
 
@@ -284,10 +284,11 @@ class OutcomeAggregator:
                 "successful_outcomes": self._successful_outcomes,
                 "failed_outcomes": self._failed_outcomes,
                 "success_rate": (
-                    self._successful_outcomes / max(1, self._successful_outcomes + self._failed_outcomes)
+                    self._successful_outcomes
+                    / max(1, self._successful_outcomes + self._failed_outcomes)
                 ),
-                "streams_active": len(set(d.stream_id for d in self._decisions)),
-                "executions_total": len(set((d.stream_id, d.execution_id) for d in self._decisions)),
+                "streams_active": len({d.stream_id for d in self._decisions}),
+                "executions_total": len({(d.stream_id, d.execution_id) for d in self._decisions}),
             }
 
             # Determine recommendation
@@ -296,7 +297,7 @@ class OutcomeAggregator:
             # Publish progress event
             if self._event_bus:
                 # Get any stream ID for the event
-                stream_ids = set(d.stream_id for d in self._decisions)
+                stream_ids = {d.stream_id for d in self._decisions}
                 if stream_ids:
                     await self._event_bus.emit_goal_progress(
                         stream_id=list(stream_ids)[0],
@@ -341,7 +342,8 @@ class OutcomeAggregator:
             # Add evidence
             for d in relevant_decisions[:5]:  # Limit evidence
                 if d.outcome:
-                    evidence = f"{d.decision.intent}: {'success' if d.outcome.success else 'failed'}"
+                    outcome_status = "success" if d.outcome.success else "failed"
+                    evidence = f"{d.decision.intent}: {outcome_status}"
                     status.evidence.append(evidence)
 
         # Check if criterion is met based on target
@@ -429,7 +431,7 @@ class OutcomeAggregator:
             "failed_outcomes": self._failed_outcomes,
             "constraint_violations": len(self._constraint_violations),
             "criteria_tracked": len(self._criterion_status),
-            "streams_seen": len(set(d.stream_id for d in self._decisions)),
+            "streams_seen": len({d.stream_id for d in self._decisions}),
         }
 
     # === RESET OPERATIONS ===

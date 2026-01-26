@@ -88,8 +88,9 @@ class OutputCleaner:
         elif config.enabled:
             # Create dedicated fast LLM provider for cleaning
             try:
-                from framework.llm.litellm import LiteLLMProvider
                 import os
+
+                from framework.llm.litellm import LiteLLMProvider
 
                 api_key = os.environ.get("CEREBRAS_API_KEY")
                 if api_key:
@@ -253,7 +254,10 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
 
             response = self.llm.complete(
                 messages=[{"role": "user", "content": prompt}],
-                system="You clean malformed agent outputs. Return only valid JSON matching the schema.",
+                system=(
+                    "You clean malformed agent outputs. Return only valid JSON "
+                    "matching the schema."
+                ),
                 max_tokens=2048,  # Sufficient for cleaning most outputs
             )
 
@@ -318,7 +322,7 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
 
                 line = f'  "{key}": {type_hint}'
                 if description:
-                    line += f'  // {description}'
+                    line += f"  // {description}"
                 if required:
                     line += " (required)"
                 lines.append(line + ",")

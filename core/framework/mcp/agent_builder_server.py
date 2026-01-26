@@ -15,14 +15,13 @@ from typing import Annotated
 
 from mcp.server import FastMCP
 
-from framework.graph import Goal, SuccessCriterion, Constraint, NodeSpec, EdgeSpec, EdgeCondition
+from framework.graph import Constraint, EdgeCondition, EdgeSpec, Goal, NodeSpec, SuccessCriterion
 from framework.graph.plan import Plan
 
 # Testing framework imports
 from framework.testing.prompts import (
     PYTEST_TEST_FILE_HEADER,
 )
-
 
 # Initialize MCP server
 mcp = FastMCP("agent-builder")
@@ -138,7 +137,7 @@ def _load_session(session_id: str) -> BuildSession:
     if not session_file.exists():
         raise ValueError(f"Session '{session_id}' not found")
 
-    with open(session_file, "r") as f:
+    with open(session_file) as f:
         data = json.load(f)
 
     return BuildSession.from_dict(data)
@@ -150,7 +149,7 @@ def _load_active_session() -> BuildSession | None:
         return None
 
     try:
-        with open(ACTIVE_SESSION_FILE, "r") as f:
+        with open(ACTIVE_SESSION_FILE) as f:
             session_id = f.read().strip()
 
         if session_id:
@@ -201,7 +200,7 @@ def list_sessions() -> str:
     if SESSIONS_DIR.exists():
         for session_file in SESSIONS_DIR.glob("*.json"):
             try:
-                with open(session_file, "r") as f:
+                with open(session_file) as f:
                     data = json.load(f)
                     sessions.append({
                         "session_id": data["session_id"],
@@ -219,7 +218,7 @@ def list_sessions() -> str:
     active_id = None
     if ACTIVE_SESSION_FILE.exists():
         try:
-            with open(ACTIVE_SESSION_FILE, "r") as f:
+            with open(ACTIVE_SESSION_FILE) as f:
                 active_id = f.read().strip()
         except Exception:
             pass
@@ -282,7 +281,7 @@ def delete_session(session_id: Annotated[str, "ID of the session to delete"]) ->
             _session = None
 
         if ACTIVE_SESSION_FILE.exists():
-            with open(ACTIVE_SESSION_FILE, "r") as f:
+            with open(ACTIVE_SESSION_FILE) as f:
                 active_id = f.read().strip()
                 if active_id == session_id:
                     ACTIVE_SESSION_FILE.unlink()
@@ -304,10 +303,21 @@ def set_goal(
     goal_id: Annotated[str, "Unique identifier for the goal"],
     name: Annotated[str, "Human-readable name"],
     description: Annotated[str, "What the agent should accomplish"],
-    success_criteria: Annotated[str, "JSON array of success criteria objects with id, description, metric, target, weight"],
-    constraints: Annotated[str, "JSON array of constraint objects with id, description, constraint_type, category"] = "[]",
+    success_criteria: Annotated[
+        str,
+        "JSON array of success criteria objects with id, description, "
+        "metric, target, weight"
+    ],
+    constraints: Annotated[
+        str,
+        "JSON array of constraint objects with id, description, "
+        "constraint_type, category"
+    ] = "[]",
 ) -> str:
-    """Define the goal for the agent. Goals are the source of truth - they define what success looks like."""
+    """Define the goal for the agent.
+
+    Goals are the source of truth - they define what success looks like.
+    """
     session = get_session()
 
     # Parse JSON inputs with error handling
@@ -466,7 +476,10 @@ def _validate_tool_credentials(tools_list: list[str]) -> dict | None:
                 "missing_credentials": cred_errors,
                 "action_required": "Add the credentials to your .env file and retry",
                 "example": f"Add to .env:\n{cred_errors[0]['env_var']}=your_key_here",
-                "message": "Cannot add node: missing API credentials. Add them to .env and retry this command.",
+                "message": (
+                    "Cannot add node: missing API credentials. Add them to .env "
+                    "and retry this command."
+                ),
             }
     except ImportError as e:
         # Return a warning that credential validation was skipped
@@ -492,9 +505,14 @@ def add_node(
     output_keys: Annotated[str, "JSON array of keys this node writes to shared memory"],
     system_prompt: Annotated[str, "Instructions for LLM nodes"] = "",
     tools: Annotated[str, "JSON array of tool names for llm_tool_use nodes"] = "[]",
-    routes: Annotated[str, "JSON object mapping conditions to target node IDs for router nodes"] = "{}",
+    routes: Annotated[
+        str, "JSON object mapping conditions to target node IDs for router nodes"
+    ] = "{}",
 ) -> str:
-    """Add a node to the agent graph. Nodes are units of work that process inputs and produce outputs."""
+    """Add a node to the agent graph.
+
+    Nodes are units of work that process inputs and produce outputs.
+    """
     session = get_session()
 
     # Parse JSON inputs
@@ -578,7 +596,9 @@ def add_edge(
     edge_id: Annotated[str, "Unique identifier for the edge"],
     source: Annotated[str, "Source node ID"],
     target: Annotated[str, "Target node ID"],
-    condition: Annotated[str, "When to traverse: always, on_success, on_failure, conditional"] = "on_success",
+    condition: Annotated[
+        str, "When to traverse: always, on_success, on_failure, conditional"
+    ] = "on_success",
     condition_expr: Annotated[str, "Python expression for conditional edges"] = "",
     priority: Annotated[int, "Priority when multiple edges match (higher = first)"] = 0,
 ) -> str:
@@ -814,7 +834,10 @@ def delete_edge(
 
 @mcp.tool()
 def validate_graph() -> str:
-    """Validate the complete graph. Checks for unreachable nodes, missing connections, and context flow."""
+    """Validate the complete graph.
+
+    Checks for unreachable nodes, missing connections, and context flow.
+    """
     session = get_session()
     errors = []
     warnings = []
@@ -832,12 +855,19 @@ def validate_graph() -> str:
     pause_nodes = [n.id for n in session.nodes if "PAUSE" in n.description.upper()]
 
     # Identify resume entry points (nodes marked as RESUME ENTRY POINT in description)
-    resume_entry_points = [n.id for n in session.nodes if "RESUME" in n.description.upper() and "ENTRY" in n.description.upper()]
+    resume_entry_points = [
+        n.id for n in session.nodes
+        if "RESUME" in n.description.upper()
+        and "ENTRY" in n.description.upper()
+    ]
 
     is_pause_resume_agent = len(pause_nodes) > 0 or len(resume_entry_points) > 0
 
     if is_pause_resume_agent:
-        warnings.append(f"Pause/resume architecture detected. Pause nodes: {pause_nodes}, Resume entry points: {resume_entry_points}")
+        warnings.append(
+            f"Pause/resume architecture detected. Pause nodes: {pause_nodes}, "
+            f"Resume entry points: {resume_entry_points}"
+        )
 
     # Find entry node (no incoming edges)
     entry_candidates = []
@@ -890,7 +920,10 @@ def validate_graph() -> str:
                 # Filter out resume entry points from unreachable list
                 unreachable_non_resume = [n for n in unreachable if n not in resume_entry_points]
                 if unreachable_non_resume:
-                    warnings.append(f"Nodes unreachable from primary entry (may be resume-only nodes): {unreachable_non_resume}")
+                    warnings.append(
+                        f"Nodes unreachable from primary entry "
+                        f"(may be resume-only nodes): {unreachable_non_resume}"
+                    )
             else:
                 errors.append(f"Unreachable nodes: {unreachable}")
 
@@ -918,7 +951,7 @@ def validate_graph() -> str:
     initial_context_keys: set[str] = set()
 
     # Compute in topological order
-    remaining = set(n.id for n in session.nodes)
+    remaining = {n.id for n in session.nodes}
     max_iterations = len(session.nodes) * 2
 
     for _ in range(max_iterations):
@@ -969,8 +1002,10 @@ def validate_graph() -> str:
             # Entry node - inputs must come from initial runtime context
             if is_resume_entry:
                 context_warnings.append(
-                    f"Resume entry node '{node_id}' requires inputs {missing} from resumed invocation context. "
-                    f"These will be provided by the runtime when resuming (e.g., user's answers)."
+                    f"Resume entry node '{node_id}' requires inputs {missing} "
+                    f"from resumed invocation context. "
+                    f"These will be provided by the runtime when resuming "
+                    f"(e.g., user's answers)."
                 )
             else:
                 context_warnings.append(
@@ -988,7 +1023,8 @@ def validate_graph() -> str:
 
                 if unproduced_external:
                     context_warnings.append(
-                        f"Resume entry node '{node_id}' expects external inputs {unproduced_external} from resumed invocation. "
+                        f"Resume entry node '{node_id}' expects external inputs "
+                        f"{unproduced_external} from resumed invocation. "
                         f"These will be injected by the runtime when the user responds."
                     )
 
@@ -998,12 +1034,17 @@ def validate_graph() -> str:
                     for key in other_missing:
                         producers = [n.id for n in session.nodes if key in n.output_keys]
                         if producers:
-                            suggestions.append(f"'{key}' is produced by {producers} - ensure edge exists")
+                            suggestions.append(
+                                f"'{key}' is produced by {producers} - ensure edge exists"
+                            )
                         else:
-                            suggestions.append(f"'{key}' is not produced - add node or include in external inputs")
+                            suggestions.append(
+                                f"'{key}' is not produced - add node or include in external inputs"
+                            )
 
                     context_errors.append(
-                        f"Resume node '{node_id}' requires {other_missing} but dependencies {deps} don't provide them. "
+                        f"Resume node '{node_id}' requires {other_missing} but "
+                        f"dependencies {deps} don't provide them. "
                         f"Suggestions: {'; '.join(suggestions)}"
                     )
             else:
@@ -1012,13 +1053,17 @@ def validate_graph() -> str:
                 for key in missing:
                     producers = [n.id for n in session.nodes if key in n.output_keys]
                     if producers:
-                        suggestions.append(f"'{key}' is produced by {producers} - add dependency edge")
+                        suggestions.append(
+                            f"'{key}' is produced by {producers} - add dependency edge"
+                        )
                     else:
-                        suggestions.append(f"'{key}' is not produced by any node - add a node that outputs it")
+                        suggestions.append(
+                            f"'{key}' is not produced by any node - add a node that outputs it"
+                        )
 
                 context_errors.append(
-                    f"Node '{node_id}' requires {missing} but dependencies {deps} don't provide them. "
-                    f"Suggestions: {'; '.join(suggestions)}"
+                    f"Node '{node_id}' requires {missing} but dependencies {deps} "
+                    f"don't provide them. Suggestions: {'; '.join(suggestions)}"
                 )
 
     errors.extend(context_errors)
@@ -1093,7 +1138,11 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
     # Build success criteria section
     criteria_section = []
     for criterion in goal.success_criteria:
-        crit_dict = criterion.model_dump() if hasattr(criterion, 'model_dump') else criterion.__dict__
+        crit_dict = (
+            criterion.model_dump()
+            if hasattr(criterion, "model_dump")
+            else criterion.__dict__
+        )
         criteria_section.append(
             f"**{crit_dict.get('description', 'N/A')}** (weight {crit_dict.get('weight', 1.0)})\n"
             f"- Metric: {crit_dict.get('metric', 'N/A')}\n"
@@ -1103,9 +1152,14 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
     # Build constraints section
     constraints_section = []
     for constraint in goal.constraints:
-        const_dict = constraint.model_dump() if hasattr(constraint, 'model_dump') else constraint.__dict__
+        const_dict = (
+            constraint.model_dump()
+            if hasattr(constraint, "model_dump")
+            else constraint.__dict__
+        )
         constraints_section.append(
-            f"**{const_dict.get('description', 'N/A')}** ({const_dict.get('constraint_type', 'hard')})\n"
+            f"**{const_dict.get('description', 'N/A')}** "
+            f"({const_dict.get('constraint_type', 'hard')})\n"
             f"- Category: {const_dict.get('category', 'N/A')}"
         )
 
@@ -1136,7 +1190,12 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
 """
 
     for edge in edges:
-        readme += f"- `{edge.source}` → `{edge.target}` (condition: {edge.condition.value if hasattr(edge.condition, 'value') else edge.condition})\n"
+        condition_val = (
+            edge.condition.value
+            if hasattr(edge.condition, "value")
+            else edge.condition
+        )
+        readme += f"- `{edge.source}` → `{edge.target}` (condition: {condition_val})\n"
 
     readme += f"""
 
@@ -1156,15 +1215,31 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
 
 {"## MCP Tool Sources" if session.mcp_servers else ""}
 
-{chr(10).join(f'''### {s["name"]} ({s["transport"]})
+{chr(10).join(
+    f'''### {s["name"]} ({s["transport"]})
 {s.get("description", "")}
 
 **Configuration:**
-''' + (f'''- Command: `{s.get("command")}`
-- Args: `{s.get("args")}`
-- Working Directory: `{s.get("cwd")}`''' if s["transport"] == "stdio" else f'''- URL: `{s.get("url")}`''') for s in session.mcp_servers) if session.mcp_servers else ""}
+{(
+    (
+        f"- Command: `{s.get('command')}`"
+        + chr(10)
+        + f"- Args: `{s.get('args')}`"
+        + chr(10)
+        + f"- Working Directory: `{s.get('cwd')}`"
+    )
+    if s["transport"] == "stdio"
+    else f"- URL: `{s.get('url')}`"
+)}
+'''
+    for s in session.mcp_servers
+) if session.mcp_servers else ""}
 
-{"Tools from these MCP servers are automatically loaded when the agent runs." if session.mcp_servers else ""}
+{(
+    "Tools from these MCP servers are automatically loaded when the agent runs."
+    if session.mcp_servers
+    else ""
+)}
 
 ## Usage
 
@@ -1268,7 +1343,7 @@ def export_graph() -> str:
         # Strategy 2: Fallback - pair sequentially if no match found
         unmatched_pause = [p for p in pause_nodes if p not in pause_to_resume]
         unmatched_resume = [r for r in resume_entry_points if r not in pause_to_resume.values()]
-        for pause_id, resume_id in zip(unmatched_pause, unmatched_resume):
+        for pause_id, resume_id in zip(unmatched_pause, unmatched_resume, strict=True):
             pause_to_resume[pause_id] = resume_id
 
         # Build entry_points dict
@@ -1302,7 +1377,11 @@ def export_graph() -> str:
                 if not edge_exists:
                     # Auto-generate edge from router route
                     # Use on_success for most routes, on_failure for "fail"/"error"/"escalate"
-                    condition = "on_failure" if route_name in ["fail", "error", "escalate"] else "on_success"
+                    condition = (
+                        "on_failure"
+                        if route_name in ["fail", "error", "escalate"]
+                        else "on_success"
+                    )
                     edges_list.append({
                         "id": f"{node.id}_to_{target_node}",
                         "source": node.id,
@@ -1354,10 +1433,10 @@ def export_graph() -> str:
     }
 
     # Add enrichment if present in goal
-    if hasattr(session.goal, 'success_criteria'):
+    if hasattr(session.goal, "success_criteria"):
         enriched_criteria = []
         for criterion in session.goal.success_criteria:
-            crit_dict = criterion.model_dump() if hasattr(criterion, 'model_dump') else criterion
+            crit_dict = criterion.model_dump() if hasattr(criterion, "model_dump") else criterion
             enriched_criteria.append(crit_dict)
         export_data["goal"]["success_criteria"] = enriched_criteria
 
@@ -1421,7 +1500,10 @@ def export_graph() -> str:
         "node_count": len(session.nodes),
         "edge_count": len(edges_list),
         "mcp_servers_count": len(session.mcp_servers),
-        "note": f"Agent exported to {exports_dir}. Files: agent.json, README.md" + (", mcp_servers.json" if session.mcp_servers else ""),
+        "note": (
+            f"Agent exported to {exports_dir}. Files: agent.json, README.md"
+            + (", mcp_servers.json" if session.mcp_servers else "")
+        ),
     }, default=str, indent=2)
 
 
@@ -1563,7 +1645,10 @@ def add_mcp_server(
                 "tools_discovered": len(tool_names),
                 "tools": tool_names,
                 "total_mcp_servers": len(session.mcp_servers),
-                "note": f"MCP server '{name}' registered with {len(tool_names)} tools. These tools can now be used in llm_tool_use nodes.",
+                "note": (
+                    f"MCP server '{name}' registered with {len(tool_names)} tools. "
+                    f"These tools can now be used in llm_tool_use nodes."
+                ),
             }, indent=2)
 
     except Exception as e:
@@ -1692,7 +1777,9 @@ def remove_mcp_server(
 def test_node(
     node_id: Annotated[str, "ID of the node to test"],
     test_input: Annotated[str, "JSON object with test input data for the node"],
-    mock_llm_response: Annotated[str, "Mock LLM response to simulate (for testing without API calls)"] = "",
+    mock_llm_response: Annotated[
+        str, "Mock LLM response to simulate (for testing without API calls)"
+    ] = "",
 ) -> str:
     """
     Test a single node with sample inputs. Use this during HITL approval to show
@@ -1831,7 +1918,10 @@ def test_graph(
         }
 
         if current_node.node_type in ("llm_generate", "llm_tool_use"):
-            step_info["prompt_preview"] = current_node.system_prompt[:200] + "..." if current_node.system_prompt and len(current_node.system_prompt) > 200 else current_node.system_prompt
+            if current_node.system_prompt and len(current_node.system_prompt) > 200:
+                step_info["prompt_preview"] = current_node.system_prompt[:200] + "..."
+            else:
+                step_info["prompt_preview"] = current_node.system_prompt
             step_info["tools_available"] = current_node.tools
 
         execution_trace.append(step_info)
@@ -1884,9 +1974,15 @@ _evaluation_rules: list[dict] = []
 def add_evaluation_rule(
     rule_id: Annotated[str, "Unique identifier for the rule"],
     description: Annotated[str, "Human-readable description of what this rule checks"],
-    condition: Annotated[str, "Python expression evaluated with result, step, goal context. E.g., 'result.get(\"success\") == True'"],
+    condition: Annotated[
+        str,
+        "Python expression evaluated with result, step, goal context. "
+        "E.g., 'result.get(\"success\") == True'"
+    ],
     action: Annotated[str, "Action when rule matches: accept, retry, replan, escalate"],
-    feedback_template: Annotated[str, "Template for feedback message, can use {result}, {step}"] = "",
+    feedback_template: Annotated[
+        str, "Template for feedback message, can use {result}, {step}"
+    ] = "",
     priority: Annotated[int, "Rule priority (higher = checked first)"] = 0,
 ) -> str:
     """
@@ -1965,7 +2061,11 @@ def create_plan(
     plan_id: Annotated[str, "Unique identifier for the plan"],
     goal_id: Annotated[str, "ID of the goal this plan achieves"],
     description: Annotated[str, "Description of what this plan does"],
-    steps: Annotated[str, "JSON array of plan steps with id, description, action, inputs, expected_outputs, dependencies"],
+    steps: Annotated[
+        str,
+        "JSON array of plan steps with id, description, action, inputs, "
+        "expected_outputs, dependencies"
+    ],
     context: Annotated[str, "JSON object with initial context for execution"] = "{}",
 ) -> str:
     """
@@ -1988,7 +2088,11 @@ def create_plan(
     {
         "id": "step_1",
         "description": "Fetch user data",
-        "action": {"action_type": "tool_use", "tool_name": "get_user", "tool_args": {"user_id": "$user_id"}},
+        "action": {
+            "action_type": "tool_use",
+            "tool_name": "get_user",
+            "tool_args": {"user_id": "$user_id"}
+        },
         "inputs": {"user_id": "$input_user_id"},
         "expected_outputs": ["user_data"],
         "dependencies": []
@@ -2205,11 +2309,13 @@ def validate_plan(
                     if producers:
                         suggestions.append(f"${var} is produced by {producers} - add as dependency")
                     else:
-                        suggestions.append(f"${var} is not produced by any step - add a step that outputs '{var}'")
+                        suggestions.append(
+                            f"${var} is not produced by any step - add a step that outputs '{var}'"
+                        )
 
                 context_errors.append(
-                    f"Step '{step_id}' references ${missing_vars} but dependencies {deps} don't provide them. "
-                    f"Suggestions: {'; '.join(suggestions)}"
+                    f"Step '{step_id}' references ${missing_vars} but dependencies "
+                    f"{deps} don't provide them. Suggestions: {'; '.join(suggestions)}"
                 )
 
     errors.extend(context_errors)
@@ -2295,7 +2401,10 @@ def simulate_plan_execution(
         "steps_simulated": len(execution_order),
         "remaining_steps": remaining,
         "plan_complete": len(remaining) == 0,
-        "note": "This is a simulation. Actual execution may differ based on step results and judge decisions.",
+        "note": (
+            "This is a simulation. Actual execution may differ based on "
+            "step results and judge decisions."
+        ),
     }, indent=2)
 
 
@@ -2423,7 +2532,11 @@ def generate_constraint_tests(
     agent_module = _get_agent_module_from_path(agent_path)
 
     # Format constraints for display
-    constraints_formatted = _format_constraints(goal.constraints) if goal.constraints else "No constraints defined"
+    constraints_formatted = (
+        _format_constraints(goal.constraints)
+        if goal.constraints
+        else "No constraints defined"
+    )
 
     # Generate the file header that should be used
     file_header = PYTEST_TEST_FILE_HEADER.format(
@@ -2446,8 +2559,13 @@ def generate_constraint_tests(
             "naming_convention": "test_constraint_<constraint_id>_<scenario>",
             "required_decorator": "@pytest.mark.asyncio",
             "required_fixture": "mock_mode",
-            "agent_call_pattern": "result = await default_agent.run(input_dict, mock_mode=mock_mode)",
-            "result_type": "ExecutionResult with .success (bool), .output (dict), .error (str|None)",
+            "agent_call_pattern": (
+                "result = await default_agent.run(input_dict, mock_mode=mock_mode)"
+            ),
+            "result_type": (
+                "ExecutionResult with .success (bool), .output (dict), "
+                ".error (str|None)"
+            ),
             "critical_rules": [
                 "Every test function MUST be async with @pytest.mark.asyncio decorator",
                 "Every test MUST accept mock_mode as a parameter",
@@ -2461,7 +2579,8 @@ def generate_constraint_tests(
         "test_template": CONSTRAINT_TEST_TEMPLATE,
         "instruction": (
             "Write tests directly to the output_file using the Write tool. "
-            "Use the file_header as the start of the file, then add test functions following the test_template format. "
+            "Use the file_header as the start of the file, then add test functions "
+            "following the test_template format. "
             "Generate up to 5 tests covering the most critical constraints."
         ),
     })
@@ -2503,7 +2622,11 @@ def generate_success_tests(
     tools = [t.strip() for t in tool_names.split(",") if t.strip()]
 
     # Format success criteria for display
-    criteria_formatted = _format_success_criteria(goal.success_criteria) if goal.success_criteria else "No success criteria defined"
+    criteria_formatted = (
+        _format_success_criteria(goal.success_criteria)
+        if goal.success_criteria
+        else "No success criteria defined"
+    )
 
     # Generate the file header that should be used
     file_header = PYTEST_TEST_FILE_HEADER.format(
@@ -2519,7 +2642,11 @@ def generate_success_tests(
         "agent_path": agent_path,
         "agent_module": agent_module,
         "output_file": f"{agent_path}/tests/test_success_criteria.py",
-        "success_criteria": [c.model_dump() for c in goal.success_criteria] if goal.success_criteria else [],
+        "success_criteria": (
+            [c.model_dump() for c in goal.success_criteria]
+            if goal.success_criteria
+            else []
+        ),
         "success_criteria_formatted": criteria_formatted,
         "agent_context": {
             "node_names": nodes if nodes else ["(not specified)"],
@@ -2530,8 +2657,13 @@ def generate_success_tests(
             "naming_convention": "test_success_<criteria_id>_<scenario>",
             "required_decorator": "@pytest.mark.asyncio",
             "required_fixture": "mock_mode",
-            "agent_call_pattern": "result = await default_agent.run(input_dict, mock_mode=mock_mode)",
-            "result_type": "ExecutionResult with .success (bool), .output (dict), .error (str|None)",
+            "agent_call_pattern": (
+                "result = await default_agent.run(input_dict, mock_mode=mock_mode)"
+            ),
+            "result_type": (
+                "ExecutionResult with .success (bool), .output (dict), "
+                ".error (str|None)"
+            ),
             "critical_rules": [
                 "Every test function MUST be async with @pytest.mark.asyncio decorator",
                 "Every test MUST accept mock_mode as a parameter",
@@ -2545,7 +2677,8 @@ def generate_success_tests(
         "test_template": SUCCESS_TEST_TEMPLATE,
         "instruction": (
             "Write tests directly to the output_file using the Write tool. "
-            "Use the file_header as the start of the file, then add test functions following the test_template format. "
+            "Use the file_header as the start of the file, then add test functions "
+            "following the test_template format. "
             "Generate up to 12 tests covering the most critical success criteria."
         ),
     })
@@ -2555,8 +2688,12 @@ def generate_success_tests(
 def run_tests(
     goal_id: Annotated[str, "ID of the goal to test"],
     agent_path: Annotated[str, "Path to the agent export folder"],
-    test_types: Annotated[str, 'JSON array of test types: ["constraint", "success", "edge_case", "all"]'] = '["all"]',
-    parallel: Annotated[int, "Number of parallel workers (-1 for auto/CPU count, 0 to disable)"] = -1,
+    test_types: Annotated[
+        str, 'JSON array of test types: ["constraint", "success", "edge_case", "all"]'
+    ] = '["all"]',
+    parallel: Annotated[
+        int, "Number of parallel workers (-1 for auto/CPU count, 0 to disable)"
+    ] = -1,
     fail_fast: Annotated[bool, "Stop on first failure (-x flag)"] = False,
     verbose: Annotated[bool, "Verbose output (-v flag)"] = True,
 ) -> str:
@@ -2567,8 +2704,8 @@ def run_tests(
     By default, tests run in parallel using pytest-xdist with auto-detected worker count.
     Returns pass/fail summary with detailed results parsed from pytest output.
     """
-    import subprocess
     import re
+    import subprocess
 
     tests_dir = Path(agent_path) / "tests"
 
@@ -2576,7 +2713,10 @@ def run_tests(
         return json.dumps({
             "goal_id": goal_id,
             "error": f"Tests directory not found: {tests_dir}",
-            "hint": "Use generate_constraint_tests or generate_success_tests to get guidelines, then write tests with the Write tool",
+            "hint": (
+                "Use generate_constraint_tests or generate_success_tests to get "
+                "guidelines, then write tests with the Write tool"
+            ),
         })
 
     # Parse test types
@@ -2695,7 +2835,11 @@ def run_tests(
     # Extract failure details
     failures = []
     # Match FAILURES section
-    failure_section = re.search(r"=+ FAILURES =+(.+?)(?:=+ (?:short test summary|ERRORS|warnings) =+|$)", output, re.DOTALL)
+    failure_section = re.search(
+        r"=+ FAILURES =+(.+?)(?:=+ (?:short test summary|ERRORS|warnings) =+|$)",
+        output,
+        re.DOTALL
+    )
     if failure_section:
         failure_text = failure_section.group(1)
         # Split by test name headers
@@ -2740,8 +2884,8 @@ def debug_test(
     Re-runs the test with pytest -vvs to capture full output.
     Returns detailed failure information and suggestions.
     """
-    import subprocess
     import re
+    import subprocess
 
     # Derive agent_path from session if not provided
     if not agent_path and _session:
@@ -2818,18 +2962,28 @@ def debug_test(
     if not passed:
         output_lower = output.lower()
 
-        if any(p in output_lower for p in ["typeerror", "attributeerror", "keyerror", "valueerror"]):
+        error_patterns = ["typeerror", "attributeerror", "keyerror", "valueerror"]
+        if any(p in output_lower for p in error_patterns):
             error_category = "IMPLEMENTATION_ERROR"
             suggestion = "Fix the bug in agent code - check the traceback for the exact location"
         elif any(p in output_lower for p in ["assertionerror", "assert", "expected"]):
             error_category = "ASSERTION_FAILURE"
-            suggestion = "The test assertion failed - either fix the agent logic or update the test expectation"
+            suggestion = (
+                "The test assertion failed - either fix the agent logic or "
+                "update the test expectation"
+            )
         elif any(p in output_lower for p in ["timeout", "timed out"]):
             error_category = "TIMEOUT"
-            suggestion = "The test or agent took too long - check for infinite loops or slow operations"
+            suggestion = (
+                "The test or agent took too long - check for infinite loops "
+                "or slow operations"
+            )
         elif any(p in output_lower for p in ["importerror", "modulenotfounderror"]):
             error_category = "IMPORT_ERROR"
-            suggestion = "Missing module or incorrect import path - check your agent package structure"
+            suggestion = (
+                "Missing module or incorrect import path - check your agent "
+                "package structure"
+            )
         elif any(p in output_lower for p in ["connectionerror", "api", "rate limit"]):
             error_category = "API_ERROR"
             suggestion = "External API issue - check API keys and network connectivity"
@@ -2883,7 +3037,10 @@ def list_tests(
             "agent_path": agent_path,
             "total": 0,
             "tests": [],
-            "hint": "No tests directory found. Generate tests with generate_constraint_tests or generate_success_tests",
+            "hint": (
+                "No tests directory found. Generate tests with "
+                "generate_constraint_tests or generate_success_tests"
+            ),
         })
 
     # Scan all test files
