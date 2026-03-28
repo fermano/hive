@@ -19,6 +19,7 @@ INTEGRATION_CREDENTIALS = {
             "github_update_issue",
             "github_list_pull_requests",
             "github_get_pull_request",
+            "github_list_pull_request_files",
             "github_create_pull_request",
             "github_search_code",
             "github_list_branches",

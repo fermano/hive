@@ -1,0 +1,183 @@
+{
+  "original_draft": {
+    "agent_name": "strict_pr_reviewer",
+    "goal": "Read-only review of GitHub pull requests: fetch metadata and patches via the API, then produce a strict, balanced tech-lead review (correctness, security, design, performance/ops, style). The agent never modifies code and never posts to GitHub.",
+    "description": "",
+    "success_criteria": [
+      "Findings cite file paths and patch evidence where available",
+      "Blocking vs non-blocking issues are clearly separated",
+      "Each blocking issue includes concrete remediation direction",
+      "Review states no repository or GitHub-side mutations were performed",
+      "User receives a structured Markdown final report"
+    ],
+    "constraints": [
+      "Never modify, write, or rewrite repository code \u2014 no apply_diff, patches, file writes, or shell commands that change files",
+      "Never post PR comments, reviews, commits, merges, or create/update issues or pull requests on GitHub",
+      "Never invent diff hunks or file contents; only use fetched API data",
+      "Remediation must be prose or pseudo-code guidance only \u2014 no full-file drop-in replacements presented as ready-to-apply patches"
+    ],
+    "nodes": [
+      {
+        "id": "intake",
+        "name": "Intake",
+        "description": "Greet the user, accept a GitHub PR URL or owner/repo/pull number, and optional notes (e.g. files or areas to de-emphasize).",
+        "node_type": "event_loop",
+        "tools": [],
+        "input_keys": [],
+        "output_keys": [
+          "owner",
+          "repo",
+          "pull_number",
+          "scope_notes"
+        ],
+        "success_criteria": "",
+        "sub_agents": [],
+        "flowchart_type": "start",
+        "flowchart_shape": "stadium",
+        "flowchart_color": "#8aad3f"
+      },
+      {
+        "id": "fetch-pr",
+        "name": "Fetch PR",
+        "description": "Load pull request metadata and all changed-file patches from GitHub using read-only API tools. Paginates until all files are retrieved.",
+        "node_type": "event_loop",
+        "tools": [
+          "github_get_pull_request",
+          "github_list_pull_request_files"
+        ],
+        "input_keys": [
+          "owner",
+          "repo",
+          "pull_number",
+          "scope_notes"
+        ],
+        "output_keys": [
+          "pr_context"
+        ],
+        "success_criteria": "",
+        "sub_agents": [],
+        "flowchart_type": "process",
+        "flowchart_shape": "rectangle",
+        "flowchart_color": "#b5a575"
+      },
+      {
+        "id": "strict-review",
+        "name": "Strict review",
+        "description": "Perform a strict, balanced tech-lead review: correctness, security, design, performance/ops, and style. No tools; output structured findings only.",
+        "node_type": "event_loop",
+        "tools": [],
+        "input_keys": [
+          "pr_context"
+        ],
+        "output_keys": [
+          "review_draft"
+        ],
+        "success_criteria": "",
+        "sub_agents": [],
+        "flowchart_type": "io",
+        "flowchart_shape": "parallelogram",
+        "flowchart_color": "#d06818"
+      },
+      {
+        "id": "deliver-report",
+        "name": "Deliver report",
+        "description": "Present the final Markdown review to the user. No tool calls.",
+        "node_type": "event_loop",
+        "tools": [],
+        "input_keys": [
+          "review_draft"
+        ],
+        "output_keys": [
+          "final_report"
+        ],
+        "success_criteria": "",
+        "sub_agents": [],
+        "flowchart_type": "terminal",
+        "flowchart_shape": "stadium",
+        "flowchart_color": "#b5453a"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-0",
+        "source": "intake",
+        "target": "fetch-pr",
+        "condition": "on_success",
+        "description": "",
+        "label": ""
+      },
+      {
+        "id": "edge-1",
+        "source": "fetch-pr",
+        "target": "strict-review",
+        "condition": "on_success",
+        "description": "",
+        "label": ""
+      },
+      {
+        "id": "edge-2",
+        "source": "strict-review",
+        "target": "deliver-report",
+        "condition": "on_success",
+        "description": "",
+        "label": ""
+      }
+    ],
+    "entry_node": "intake",
+    "terminal_nodes": [
+      "deliver-report"
+    ],
+    "flowchart_legend": {
+      "start": {
+        "shape": "stadium",
+        "color": "#8aad3f"
+      },
+      "terminal": {
+        "shape": "stadium",
+        "color": "#b5453a"
+      },
+      "process": {
+        "shape": "rectangle",
+        "color": "#b5a575"
+      },
+      "decision": {
+        "shape": "diamond",
+        "color": "#d89d26"
+      },
+      "io": {
+        "shape": "parallelogram",
+        "color": "#d06818"
+      },
+      "document": {
+        "shape": "document",
+        "color": "#c4b830"
+      },
+      "database": {
+        "shape": "cylinder",
+        "color": "#508878"
+      },
+      "subprocess": {
+        "shape": "subroutine",
+        "color": "#887a48"
+      },
+      "browser": {
+        "shape": "hexagon",
+        "color": "#cc8850"
+      }
+    }
+  },
+  "flowchart_map": {
+    "intake": [
+      "intake"
+    ],
+    "fetch-pr": [
+      "fetch-pr"
+    ],
+    "strict-review": [
+      "strict-review"
+    ],
+    "deliver-report": [
+      "deliver-report"
+    ]
+  }
+}

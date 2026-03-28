@@ -5,7 +5,7 @@ Covers:
 - _GitHubClient methods (repositories, issues, PRs, search, branches)
 - Error handling (API errors, timeout, network errors)
 - Credential retrieval (CredentialStoreAdapter vs env var)
-- All 15 MCP tool functions
+- All GitHub MCP tool functions (including list PR files)
 """
 
 from __future__ import annotations
@@ -227,6 +227,29 @@ class TestGitHubClient:
 
         assert result["success"] is True
         assert result["data"]["title"] == "Test PR"
+
+    @patch("aden_tools.tools.github_tool.github_tool.httpx.get")
+    def test_list_pull_request_files(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "filename": "src/a.py",
+                "status": "modified",
+                "additions": 2,
+                "deletions": 1,
+                "patch": "@@ -1 +1 @@\n-old\n+new",
+            },
+        ]
+        mock_get.return_value = mock_response
+
+        result = self.client.list_pull_request_files("owner", "repo", 1, page=1, per_page=50)
+
+        assert result["success"] is True
+        assert len(result["data"]) == 1
+        assert result["data"][0]["filename"] == "src/a.py"
+        called_url = mock_get.call_args[0][0]
+        assert called_url.endswith("/repos/owner/repo/pulls/1/files")
 
     @patch("aden_tools.tools.github_tool.github_tool.httpx.post")
     def test_create_pull_request(self, mock_post):
@@ -544,6 +567,24 @@ class TestGitHubPullRequests:
             result = get_pr(owner="owner", repo="repo", pull_number=1)
 
             assert result["success"] is True
+
+    @patch("aden_tools.tools.github_tool.github_tool.httpx.get")
+    def test_list_pull_request_files_success(self, mock_get, mcp):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {"filename": "x.py", "status": "added", "patch": "@@ ..."},
+        ]
+        mock_get.return_value = mock_response
+
+        with patch("os.getenv", return_value="ghp_test"):
+            register_tools(mcp, credentials=None)
+            list_files = mcp._tool_manager._tools["github_list_pull_request_files"].fn
+
+            result = list_files(owner="owner", repo="repo", pull_number=42)
+
+            assert result["success"] is True
+            assert len(result["data"]) == 1
 
     @patch("aden_tools.tools.github_tool.github_tool.httpx.post")
     def test_create_pull_request_success(self, mock_post, mcp):

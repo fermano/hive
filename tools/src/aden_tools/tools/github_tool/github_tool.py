@@ -313,6 +313,29 @@ class _GitHubClient:
         )
         return self._handle_response(response)
 
+    def list_pull_request_files(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        page: int = 1,
+        per_page: int = 100,
+    ) -> dict[str, Any]:
+        """List files changed in a pull request (includes per-file patch hunks when available)."""
+        owner = _sanitize_path_param(owner, "owner")
+        repo = _sanitize_path_param(repo, "repo")
+        params = {
+            "per_page": min(max(1, per_page), 100),
+            "page": max(1, page),
+        }
+        response = httpx.get(
+            f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pull_number}/files",
+            headers=self._headers,
+            params=params,
+            timeout=60.0,
+        )
+        return self._handle_response(response)
+
     def create_pull_request(
         self,
         owner: str,
@@ -907,6 +930,44 @@ def register_tools(
             return client
         try:
             return client.get_pull_request(owner, repo, pull_number)
+        except httpx.TimeoutException:
+            return {"error": "Request timed out"}
+        except httpx.RequestError as e:
+            return {"error": _sanitize_error_message(e)}
+
+    @mcp.tool()
+    def github_list_pull_request_files(
+        owner: str,
+        repo: str,
+        pull_number: int,
+        page: int = 1,
+        per_page: int = 100,
+        account: str = "",
+    ) -> dict:
+        """
+        List files changed in a pull request with metadata and patch hunks.
+
+        Each file entry may include: filename, status (added/modified/removed/renamed),
+        additions, deletions, changes, and patch (unified diff; omitted for very large
+        files). Paginate with page (1-based) if a PR touches many files.
+
+        Args:
+            owner: Repository owner or organization
+            repo: Repository name
+            pull_number: Pull request number
+            page: Results page (default 1)
+            per_page: Page size 1-100 (default 100)
+
+        Returns:
+            Dict with success/data (list of file objects) or error
+        """
+        client = _get_client(account)
+        if isinstance(client, dict):
+            return client
+        try:
+            return client.list_pull_request_files(owner, repo, pull_number, page, per_page)
+        except ValueError as e:
+            return {"error": str(e)}
         except httpx.TimeoutException:
             return {"error": "Request timed out"}
         except httpx.RequestError as e:
