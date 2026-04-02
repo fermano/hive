@@ -60,19 +60,54 @@ Optional fields:
 
 The `description` is what the agent uses to decide whether to activate a skill. Make it specific.
 
-## 4) Validate locally (and then via CLI)
+## 4) Scaffold with `hive skill init`
 
-Planned contributor workflow once Phase 2 CLI UX is frozen:
+Creates a new directory and writes a `SKILL.md` template.
 
-1. Scaffold a skill directory
-2. Fill in `SKILL.md`
-3. Validate
-4. Submit the registry PR
+```bash
+hive skill init --name my-skill
+hive skill init --name my-skill --dir /path/to/parent
+```
 
-> TODO(#6369): Replace this section with the exact `hive skill init` and `hive skill validate` commands,
-> including expected output and error messages.
+If you omit `--name` in an interactive terminal, the CLI prompts for a name. Non-interactive use
+requires `--name`.
 
-## 5) Make sure it behaves well in edge cases
+Next steps printed by the command: edit `SKILL.md`, run `hive skill validate`, then copy or move the
+skill under `~/.hive/skills/` (or a project `.hive/skills/`) so agents discover it.
+
+## 5) Validate with `hive skill validate`
+
+Strict validation against the Agent Skills spec. Pass either the path to `SKILL.md` or the skill
+directory (the CLI resolves `SKILL.md` inside the directory).
+
+```bash
+hive skill validate path/to/my-skill/SKILL.md
+hive skill validate path/to/my-skill
+```
+
+- Exit code `0` when valid (warnings allowed).
+- Exit code `1` when invalid. Human output uses `[WARN]` and `[ERROR]` lines; use `--json` for
+  machine-readable `passed`, `errors`, and `warnings`.
+
+## 6) Optional: fork and test
+
+```bash
+hive skill fork <installed-skill-name> [--name my-skill-fork] [--dir ~/.hive/skills] [--yes]
+hive skill test path/to/skill-or-SKILL.md
+hive skill test path/to/skill --input '{"prompt": "..."}'   # needs ANTHROPIC_API_KEY
+hive skill test path/to/skill --model claude-haiku-4-5-20251001
+```
+
+Without `--input` and without an `evals/` suite, `hive skill test` runs structural validation plus
+doctor-style checks (no API key). With `evals/*.json` cases, an API key is required for LLM
+invocation and judge assertions.
+
+## 7) Submit to the community registry
+
+> TODO(#6370): Document the exact PR flow against `hive-skill-registry` once the registry repo and
+> contribution guide are finalized.
+
+## 8) Make sure it behaves well in edge cases
 
 In your instruction body:
 

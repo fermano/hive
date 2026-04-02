@@ -41,5 +41,14 @@ default_skills = {
 4. Re-run the same workload and compare deltas.
 5. Disable only if regressions are not recoverable by tuning.
 
-> TODO(#6369): Add concrete examples for command-based diagnostics once CLI behavior is finalized.
+## Check default skills with the CLI
+
+Run structural and health checks on all six framework default skills:
+
+```bash
+hive skill doctor --defaults
+```
+
+Use `hive skill doctor` (no `--defaults`) from a project directory to audit discovered project,
+user, and framework skills, or `hive skill doctor <skill-name>` to focus on one skill.
 

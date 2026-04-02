@@ -868,7 +868,8 @@ two-step model:
 2. Finalize CLI- and registry-dependent details only after behavior is frozen.
 
 Dependency-gated sections must be tracked explicitly:
-- Gate A (`#6369`): command names, flags, output examples, diagnostics language.
+- Gate A (Phase 2 / `#6369`): keep docs aligned with shipped `hive skill` commands (flags, examples,
+  diagnostics language). Treat CLI as the source of truth once implemented.
 - Gate B (`#6370`): registry paths, starter pack details, index examples, contribution flow specifics.
 
 Minimum readiness bar before requesting docs review:

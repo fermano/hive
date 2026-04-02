@@ -31,21 +31,36 @@ EOF
 
 On the next agent session, the skill will be discovered automatically.
 
-### Registry install (planned CLI flow)
+### Install via CLI from a git URL
 
-Once Phase 2 + Phase 3 land, the intended workflow is:
+`hive skill install` copies the skill into `~/.hive/skills/<name>/` (user scope). On first install,
+Hive prints a one-time security notice (NFR-5).
 
 ```bash
-hive skill install <skill-name>
+hive skill install --from https://github.com/org/skill-repo.git
+hive skill install --from https://github.com/org/skill-repo.git --name my-skill
+hive skill install --from https://github.com/org/skill-repo.git --version main
+```
+
+Use `hive skill remove <name>` to uninstall from `~/.hive/skills/`.
+
+### Registry name, search, and info (needs a live index)
+
+The CLI already supports registry-backed flows:
+
+```bash
+hive skill update              # refresh registry cache (no skill name)
 hive skill search <query>
+hive skill install <skill-name>
 hive skill info <skill-name>
 ```
 
-Until the registry CLI UX is finalized, install from local skill directories (`.hive/skills/` or
-`.agents/skills/`).
+The client fetches `skill_index.json` from a configurable URL (default is set in
+`framework/skills/registry.py`). Override with `HIVE_REGISTRY_URL` if you host your own index.
 
-> TODO(#6369): Replace the placeholders above with the finalized `hive skill` command syntax.
-> TODO(#6370): Replace registry wording with the final registry + starter-pack mechanics.
+Until the community registry ships a reachable default index ([#6370](https://github.com/aden-hive/hive/issues/6370)),
+`search` / `install <name>` may report the registry as unavailable. In that case use
+`hive skill install --from <git-url>` or a custom `HIVE_REGISTRY_URL`.
 
 ## 3) Verify the skill is discovered
 

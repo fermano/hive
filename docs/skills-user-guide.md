@@ -23,8 +23,8 @@ Skills are folders containing a `SKILL.md` file that teaches an agent how to per
 
 ## Quick start
 
-> TODO(#6369): Replace command snippets in this section after `hive skill` command flags and output are frozen.
-> TODO(#6370): Replace registry and starter-pack examples after registry defaults are finalized.
+> TODO(#6370): Finalize registry default URL, starter-pack catalog, and copy-paste examples once the
+> community registry index is live.
 
 ### Install a skill
 
@@ -46,6 +46,20 @@ EOF
 ```
 
 The agent will discover it automatically on the next session.
+
+Or scaffold and validate with the CLI:
+
+```bash
+hive skill init --name my-skill
+# edit my-skill/SKILL.md, then:
+hive skill validate my-skill
+```
+
+User-scope installs from git go to `~/.hive/skills/`:
+
+```bash
+hive skill install --from https://github.com/org/skill-repo.git
+```
 
 ### List discovered skills
 
@@ -69,17 +83,18 @@ USER SKILLS
     /home/user/.hive/skills/deep-research/SKILL.md
 ```
 
-### Install from registry (planned CLI flow)
-
-When Phase 2 and Phase 3 are finalized, the default install flow will be:
+### Registry install, search, and cache refresh
 
 ```bash
-hive skill install <skill-name>
+hive skill update              # refresh registry cache
 hive skill search <query>
+hive skill install <skill-name>
 hive skill info <skill-name>
 ```
 
-Until those dependencies are finalized, use local skill directories in `.hive/skills/` or `.agents/skills/`.
+These require a fetchable `skill_index.json` (see `HIVE_REGISTRY_URL` in the environment table
+below). Until the default community index is available ([#6370](https://github.com/aden-hive/hive/issues/6370)),
+prefer `hive skill install --from <git-url>` or set `HIVE_REGISTRY_URL` to your own index.
 
 ## Where to put skills
 
@@ -332,7 +347,11 @@ Suggested tuning sequence:
 4. Re-run the same workload and compare deltas.
 5. Disable only if measured regressions are not recoverable by tuning.
 
-> TODO(#6369): Add concrete `hive skill doctor --defaults` and config examples once command UX is finalized.
+Audit the six built-in default skills:
+
+```bash
+hive skill doctor --defaults
+```
 
 ## Skill cookbook
 
@@ -373,7 +392,21 @@ Quality dimensions to score:
 - Robustness: does it handle edge cases and recover from tool errors?
 - Output quality: is output accurate, clear, and policy-compliant?
 
-> TODO(#6369): Add `hive skill test` command examples after final CLI behavior lands.
+Run checks from the CLI:
+
+```bash
+# Structural validation + doctor checks (no API key)
+hive skill test path/to/my-skill
+
+# Live invocation (requires ANTHROPIC_API_KEY); JSON input with a "prompt" key recommended
+hive skill test path/to/my-skill --input '{"prompt": "..."}'
+
+# Optional model override (default: claude-haiku-4-5-20251001)
+hive skill test path/to/my-skill --input '{"prompt": "..."}' --model claude-haiku-4-5-20251001
+```
+
+If the skill has an `evals/` directory with `*.json` eval suites, the command runs cases and
+LLM-judge assertions when an API key is available; otherwise it warns and skips eval execution.
 
 ## Port a skill from Claude Code or Cursor
 
@@ -383,10 +416,10 @@ Porting checklist:
 1. Copy the skill directory to `.agents/skills/<skill-name>/` or `.hive/skills/<skill-name>/`.
 2. Confirm frontmatter fields are valid and `name` matches directory name.
 3. Verify relative references for `scripts/`, `references/`, and `assets/`.
-4. Run local validation and resolve any schema mismatches.
+4. Run `hive skill validate` on the skill path and fix reported errors.
 5. Test activation against a prompt that should trigger the skill.
 
-> TODO(#6369): Replace "local validation" wording with exact `hive skill validate` flow and output.
+Optional: `hive skill doctor <skill-name> --project-dir /path/to/project` for script and parse checks.
 
 ## Starter packs
 
@@ -410,6 +443,8 @@ Pack lifecycle:
 |----------|-------------|
 | `HIVE_TRUST_PROJECT_SKILLS=1` | Bypass trust gating for all project-level skills (CI override) |
 | `HIVE_OWN_REMOTES` | Comma-separated glob patterns for auto-trusted remotes (e.g., `github.com/myorg/*`) |
+| `HIVE_REGISTRY_URL` | URL to `skill_index.json` for `hive skill search`, `install <name>`, and `update` |
+| `ANTHROPIC_API_KEY` | Required for `hive skill test` live invocation and eval suites that use the LLM |
 
 ## Compatibility with other agents
 
@@ -424,7 +459,7 @@ See the [Agent Skills specification](https://agentskills.io/specification) for t
 ## Documentation release checklist
 
 Before marking documentation "ready for review" for Phase 4:
-- Confirm `#6369` command names, flags, and behavior are stable.
+- Confirm `#6369` CLI behavior matches docs (re-run `hive skill --help` and command snippets).
 - Confirm `#6370` registry structure, packs, and index behavior are stable.
 - Re-run all command snippets and update output blocks.
 - Replace every TODO anchor tied to `#6369` and `#6370`.
