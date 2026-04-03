@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 from viral_tech_copywriter import (
+    ViralTechCopywriterAgent,
     default_agent,
     edges,
     entry_node,
@@ -104,3 +108,24 @@ class TestAgentClass:
 class TestRunnerLoad:
     def test_agent_runner_load_succeeds(self, runner_loaded) -> None:
         assert runner_loaded is not None
+
+
+class TestMcpConfig:
+    def test_mcp_config_path_is_package_file(self) -> None:
+        path = ViralTechCopywriterAgent.mcp_config_path()
+        assert path.name == "mcp_servers.json"
+        assert path.parent == Path(__file__).resolve().parents[1]
+        assert path.is_file()
+
+    def test_load_hive_tools_registry_missing_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        missing = tmp_path / "missing_mcp_servers.json"
+
+        @classmethod
+        def _fake_mcp_path(cls: type[ViralTechCopywriterAgent]) -> Path:
+            return missing
+
+        monkeypatch.setattr(ViralTechCopywriterAgent, "mcp_config_path", _fake_mcp_path)
+        with pytest.raises(FileNotFoundError, match="Required MCP config"):
+            ViralTechCopywriterAgent.load_hive_tools_registry()

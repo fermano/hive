@@ -20,6 +20,9 @@ from .nodes import (
     write_package_node,
 )
 
+_PACKAGE_DIR = Path(__file__).resolve().parent
+MCP_CONFIG_FILENAME = "mcp_servers.json"
+
 # Loads hive-tools MCP (save_data, append_data, serve_file_to_user, etc.).
 skip_credential_validation = True
 
@@ -143,6 +146,32 @@ terminal_nodes = ["deliver-exports"]
 class ViralTechCopywriterAgent:
     """Viral Tech Copywriter — intake → normalize-brief → write-package → deliver-exports."""
 
+    @classmethod
+    def mcp_config_path(cls) -> Path:
+        """Absolute path to ``mcp_servers.json`` next to this package (hive-tools stdio config)."""
+        return _PACKAGE_DIR / MCP_CONFIG_FILENAME
+
+    @classmethod
+    def load_hive_tools_registry(cls) -> ToolRegistry:
+        """
+        Build a ``ToolRegistry`` with hive-tools MCP loaded from ``mcp_servers.json``.
+
+        Raises:
+            FileNotFoundError: If the config file is missing (required for ``deliver-exports``).
+        """
+        path = cls.mcp_config_path()
+        if not path.is_file():
+            msg = (
+                f"Required MCP config not found: {path}\n"
+                "The Viral Tech Copywriter template ships with mcp_servers.json; restore it or "
+                "run from the package directory. Without it, hive-tools (save_data, "
+                "serve_file_to_user, etc.) cannot load. See README.md."
+            )
+            raise FileNotFoundError(msg)
+        registry = ToolRegistry()
+        registry.load_mcp_config(path)
+        return registry
+
     def __init__(self, config=None):
         self.config = config or default_config
         self.goal = goal
@@ -182,11 +211,7 @@ class ViralTechCopywriterAgent:
         storage_path.mkdir(parents=True, exist_ok=True)
 
         self._event_bus = EventBus()
-        self._tool_registry = ToolRegistry()
-
-        mcp_config_path = Path(__file__).parent / "mcp_servers.json"
-        if mcp_config_path.exists():
-            self._tool_registry.load_mcp_config(mcp_config_path)
+        self._tool_registry = self.load_hive_tools_registry()
 
         llm = LiteLLMProvider(
             model=self.config.model,
@@ -219,6 +244,7 @@ class ViralTechCopywriterAgent:
     async def stop(self) -> None:
         self._executor = None
         self._event_bus = None
+        self._tool_registry = None
 
     async def trigger_and_wait(
         self,
@@ -242,9 +268,7 @@ class ViralTechCopywriterAgent:
     async def run(self, context: dict, session_state=None) -> ExecutionResult:
         await self.start()
         try:
-            result = await self.trigger_and_wait(
-                "start", context, session_state=session_state
-            )
+            result = await self.trigger_and_wait("start", context, session_state=session_state)
             return result or ExecutionResult(success=False, error="Execution timeout")
         finally:
             await self.stop()
@@ -287,9 +311,7 @@ class ViralTechCopywriterAgent:
 
         for ep_id, node_id in self.entry_points.items():
             if node_id not in node_ids:
-                errors.append(
-                    f"Entry point '{ep_id}' references unknown node '{node_id}'"
-                )
+                errors.append(f"Entry point '{ep_id}' references unknown node '{node_id}'")
 
         return {
             "valid": len(errors) == 0,

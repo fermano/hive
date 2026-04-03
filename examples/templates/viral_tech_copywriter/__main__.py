@@ -41,7 +41,11 @@ def run_cmd(quiet: bool, verbose: bool, debug: bool) -> None:
     if not quiet:
         setup_logging(verbose=verbose, debug=debug)
 
-    result = asyncio.run(default_agent.run({}))
+    try:
+        result = asyncio.run(default_agent.run({}))
+    except FileNotFoundError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
 
     output_data = {
         "success": result.success,
@@ -65,31 +69,21 @@ def tui(verbose: bool, debug: bool) -> None:
     try:
         from framework.tui.app import AdenTUI
     except ImportError:
-        click.echo(
-            "TUI requires the 'textual' package. Install with: uv pip install textual"
-        )
+        click.echo("TUI requires the 'textual' package. Install with: uv pip install textual")
         sys.exit(1)
 
     from pathlib import Path
 
     from framework.llm import LiteLLMProvider
-    from framework.runner.tool_registry import ToolRegistry
     from framework.runtime.agent_runtime import create_agent_runtime
-    from framework.runtime.event_bus import EventBus
     from framework.runtime.execution_stream import EntryPointSpec
 
     async def run_with_tui() -> None:
         agent = ViralTechCopywriterAgent()
-
-        agent._event_bus = EventBus()
-        agent._tool_registry = ToolRegistry()
+        registry = ViralTechCopywriterAgent.load_hive_tools_registry()
 
         storage_path = Path.home() / ".hive" / "agents" / "viral_tech_copywriter"
         storage_path.mkdir(parents=True, exist_ok=True)
-
-        mcp_config_path = Path(__file__).parent / "mcp_servers.json"
-        if mcp_config_path.exists():
-            agent._tool_registry.load_mcp_config(mcp_config_path)
 
         llm = LiteLLMProvider(
             model=agent.config.model,
@@ -97,8 +91,8 @@ def tui(verbose: bool, debug: bool) -> None:
             api_base=agent.config.api_base,
         )
 
-        tools = list(agent._tool_registry.get_tools().values())
-        tool_executor = agent._tool_registry.get_executor()
+        tools = list(registry.get_tools().values())
+        tool_executor = registry.get_executor()
         graph = agent._build_graph()
 
         runtime = create_agent_runtime(
@@ -127,7 +121,11 @@ def tui(verbose: bool, debug: bool) -> None:
         finally:
             await runtime.stop()
 
-    asyncio.run(run_with_tui())
+    try:
+        asyncio.run(run_with_tui())
+    except FileNotFoundError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
 
 
 @cli.command()

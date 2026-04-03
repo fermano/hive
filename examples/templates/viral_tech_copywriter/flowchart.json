@@ -1,19 +1,20 @@
 {
   "original_draft": {
     "agent_name": "viral_tech_copywriter",
-    "goal": "Capture a marketing brief through conversation, normalize it into structured JSON, and produce hook-heavy, platform-specific copy without fabricating facts.",
+    "goal": "Capture a marketing brief through conversation, normalize it into structured JSON, produce hook-heavy platform copy, then export HTML and/or Markdown with user-chosen formats—without fabricating facts.",
     "description": "",
     "success_criteria": [
       "Intake produces a raw_brief with product, ICP, and platforms",
       "structured_brief matches schema and uses only provided facts",
       "Multiple distinct hook angles, not trivial paraphrases",
       "Requested platforms receive tailored copy with CTAs where apt",
-      "Honors tone, banned phrases, and no fabricated metrics"
+      "Honors tone, banned phrases, and no fabricated metrics",
+      "User-selected HTML/Markdown files created, served, and listed in delivered_artifacts"
     ],
     "constraints": [
       "Do not invent customers, metrics, logos, or press quotes",
       "Flag uncertain claims in verify_flags or notes, not as facts",
-      "normalize-brief and write-package must emit parseable JSON strings"
+      "normalize-brief and write-package emit parseable JSON; delivered_artifacts lists served files"
     ],
     "nodes": [
       {
@@ -64,6 +65,32 @@
         ],
         "success_criteria": "copy_package is valid JSON with distinct hooks and content for requested platforms only.",
         "sub_agents": [],
+        "flowchart_type": "process",
+        "flowchart_shape": "rectangle",
+        "flowchart_color": "#b5a575"
+      },
+      {
+        "id": "deliver-exports",
+        "name": "Deliver exports",
+        "description": "Offers HTML / Markdown / both via save_data and append_data, serves files to the user, and records delivered_artifacts.",
+        "node_type": "event_loop",
+        "tools": [
+          "save_data",
+          "append_data",
+          "serve_file_to_user",
+          "load_data",
+          "list_data_files",
+          "edit_data"
+        ],
+        "input_keys": [
+          "structured_brief",
+          "copy_package"
+        ],
+        "output_keys": [
+          "delivered_artifacts"
+        ],
+        "success_criteria": "User chose format(s); HTML and/or Markdown files created and served; delivered_artifacts JSON lists files and URIs.",
+        "sub_agents": [],
         "flowchart_type": "terminal",
         "flowchart_shape": "stadium",
         "flowchart_color": "#b5453a"
@@ -85,11 +112,19 @@
         "condition": "on_success",
         "description": "",
         "label": ""
+      },
+      {
+        "id": "edge-2",
+        "source": "write-package",
+        "target": "deliver-exports",
+        "condition": "on_success",
+        "description": "",
+        "label": ""
       }
     ],
     "entry_node": "intake",
     "terminal_nodes": [
-      "write-package"
+      "deliver-exports"
     ],
     "flowchart_legend": {
       "start": {
@@ -139,6 +174,9 @@
     ],
     "write-package": [
       "write-package"
+    ],
+    "deliver-exports": [
+      "deliver-exports"
     ]
   }
 }

@@ -13,8 +13,11 @@
 
 ## Run
 
-`mcp_servers.json` must be present (it ships with the template) so the MCP server can start
-from the repo `tools/` directory (`uv run python mcp_server.py --stdio`).
+`mcp_servers.json` **must** be present next to this package (it ships with the template).
+**`run`** and **`tui`** call `ViralTechCopywriterAgent.load_hive_tools_registry()` at startup and
+**exit with a clear error** if the file is missing, instead of failing later when delivery tools
+are invoked. The config starts the hive-tools MCP server from the repo `tools/` directory
+(`uv run python mcp_server.py --stdio`).
 
 ```bash
 PYTHONPATH=core:examples/templates uv run python -m viral_tech_copywriter validate
